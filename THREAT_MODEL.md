@@ -4,24 +4,29 @@ This threat model maps concrete vulnerability classes present in
 `vulnerable_target` (Sentinel's own test fixture and demo target) to
 STRIDE, OWASP Top 10 (where a classic web-app category genuinely applies),
 the OWASP Top 10 for LLM/Agentic Applications, and MITRE ATT&CK techniques
-where a real technique applies. Each row will gain a "Detected by" and
-"Blocked by" reference once the static scanner (sub-project 2) and runtime
-proxy (sub-project 4) are built — this document is updated in place as
-those land, not rewritten.
+where a real technique applies. The "Detected by" column names the static
+scanner rule (see `src/scanner/`, taxonomy in `src/taxonomy/registry.py`)
+that catches each class, where one exists; "Blocked by" is filled in once
+the runtime proxy (sub-project 4) lands — this document is updated in
+place as that happens, not rewritten.
 
 ## STRIDE-mapped vulnerability classes
 
-| # | Vulnerability class | STRIDE | OWASP Top 10 | OWASP LLM/Agentic Top 10 | MITRE ATT&CK | Where it lives |
-|---|---|---|---|---|---|---|
-| 1 | Overly broad tool permission scopes (no least privilege) | Elevation of Privilege | A01:2021 Broken Access Control | LLM06: Excessive Agency | T1548 Abuse Elevation Control Mechanism | `vulnerable_target/permissions.py` |
-| 2 | SSRF-capable fetch tool, no host allowlist | Spoofing, Information Disclosure | A10:2021 Server-Side Request Forgery | LLM06: Excessive Agency | T1090 Proxy / T1018 Remote System Discovery | `vulnerable_target/tools/fetch_url.py` |
-| 3 | Prompt-injection-to-tool-call chaining (malicious fetched content triggers unintended tool calls) | Tampering, Elevation of Privilege | — | LLM01: Prompt Injection | T1204 User Execution (analog: agent executes attacker-supplied instruction) | `vulnerable_target/agent.py` |
-| 4 | Insecure tool output handling (results fed back into model context unsanitized) | Tampering | — | LLM01: Prompt Injection, LLM05: Improper Output Handling | T1565 Data Manipulation | `vulnerable_target/agent.py` |
-| 5 | Missing input validation on tool arguments — path traversal | Tampering, Information Disclosure | A01:2021 Broken Access Control | LLM06: Excessive Agency | T1005 Data from Local System | `vulnerable_target/tools/read_file.py` |
-| 6 | Missing input validation on tool arguments — SQL injection | Tampering, Information Disclosure | A03:2021 Injection | LLM06: Excessive Agency | T1213 Data from Information Repositories | `vulnerable_target/tools/query_db.py` |
-| 7 | Missing input validation on tool arguments — shell/command injection | Tampering, Elevation of Privilege | A03:2021 Injection | LLM06: Excessive Agency | T1059 Command and Scripting Interpreter | `vulnerable_target/tools/run_command.py` |
+| # | Vulnerability class | STRIDE | OWASP Top 10 | OWASP LLM/Agentic Top 10 | MITRE ATT&CK | Where it lives | Detected by |
+|---|---|---|---|---|---|---|---|
+| 1 | Overly broad tool permission scopes (no least privilege) | Elevation of Privilege | A01:2021 Broken Access Control | LLM06: Excessive Agency | T1548 Abuse Elevation Control Mechanism | `vulnerable_target/permissions.py` | `MCP-SENT-001` (structural: scope vs. declared purpose) |
+| 2 | SSRF-capable fetch tool, no host allowlist | Spoofing, Information Disclosure | A10:2021 Server-Side Request Forgery | LLM06: Excessive Agency | T1090 Proxy / T1018 Remote System Discovery | `vulnerable_target/tools/fetch_url.py` | `MCP-SENT-002` (taint: tainted URL to HTTP fetch) |
+| 3 | Prompt-injection-to-tool-call chaining (malicious fetched content triggers unintended tool calls) | Tampering, Elevation of Privilege | — | LLM01: Prompt Injection | T1204 User Execution (analog: agent executes attacker-supplied instruction) | `vulnerable_target/agent.py` | Not statically detectable — this is a runtime decision-loop behavior, not a data-flow-to-sink pattern; see the runtime proxy (sub-project 4) |
+| 4 | Insecure tool output handling (results fed back into model context unsanitized) | Tampering | — | LLM01: Prompt Injection, LLM05: Improper Output Handling | T1565 Data Manipulation | `vulnerable_target/agent.py` | Not statically detectable (same reason as class #3); see the runtime proxy (sub-project 4) |
+| 5 | Missing input validation on tool arguments — path traversal | Tampering, Information Disclosure | A01:2021 Broken Access Control | LLM06: Excessive Agency | T1005 Data from Local System | `vulnerable_target/tools/read_file.py` | `MCP-SENT-003` (taint: tainted path to filesystem sink) |
+| 6 | Missing input validation on tool arguments — SQL injection | Tampering, Information Disclosure | A03:2021 Injection | LLM06: Excessive Agency | T1213 Data from Information Repositories | `vulnerable_target/tools/query_db.py` | `MCP-SENT-004` (taint: tainted string to `.execute()`) |
+| 7 | Missing input validation on tool arguments — shell/command injection | Tampering, Elevation of Privilege | A03:2021 Injection | LLM06: Excessive Agency | T1059 Command and Scripting Interpreter | `vulnerable_target/tools/run_command.py` | `MCP-SENT-005` (taint: tainted string to `shell=True`/`os.system`) |
+| 8 | Tool endpoints with no rate limiting or authentication | Denial of Service, Spoofing | A04:2021 Insecure Design | LLM04: Model Denial of Service, LLM06: Excessive Agency | T1499 Endpoint Denial of Service | `vulnerable_target/server.py` | `MCP-SENT-006` (structural: file registers `.tool()` endpoints with no rate-limit/auth token present) |
+| 9 | Tool description weaponized as a prompt-injection vector | Tampering | — | LLM01: Prompt Injection | T1204 User Execution | Not present in `vulnerable_target` (its tool docstrings are clean by design — this class needs a deliberately malicious fixture, see `tests/scanner/test_structural_tool_description_injection.py`) | `MCP-SENT-007` (structural: instruction-like phrasing in a `.tool()`-decorated docstring) |
 
-Note: class #7's shell-injection tests (`tests/vulnerable_target/test_run_command.py`) require a POSIX shell and are skipped on native Windows — run them in Docker, Linux, or WSL for full coverage.
+Notes:
+- Class #7's shell-injection tests (`tests/vulnerable_target/test_run_command.py`) require a POSIX shell and are skipped on native Windows — run them in Docker, Linux, or WSL for full coverage.
+- The scanner's taint engine (classes #2, #5, #6, #7) is genuinely interprocedural: it follows a tainted value from a tool's parameter through a helper-function call into a different file before it reaches the sink, not just same-function pattern matching. See `src/scanner/taint/engine.py` and `tests/scanner/test_engine_interprocedural.py`.
 
 ## Attack tree: prompt-injection-to-exfiltration chain
 
