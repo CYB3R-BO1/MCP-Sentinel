@@ -14,7 +14,7 @@ _SEVERITY_ORDER = (
 
 def render_terminal_report(findings: list[Finding], scan_root: str) -> str:
     lines: list[str] = []
-    lines.append("MCP Sentinel — Static Scan Report")
+    lines.append("MCP Sentinel - Static Scan Report")
     lines.append("=" * 34)
     lines.append(f"Scanned: {scan_root}")
 
