@@ -51,9 +51,11 @@ class ExcessivePermissionScopeRule(StructuralRule):
 
         for source_file in project.files:
             for stmt in source_file.tree.body:
-                if not (isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Dict)):
+                if isinstance(stmt, (ast.Assign, ast.AnnAssign)) and isinstance(stmt.value, ast.Dict):
+                    manifest_dict = stmt.value
+                else:
                     continue
-                for tool_key, tool_value in zip(stmt.value.keys, stmt.value.values):
+                for tool_key, tool_value in zip(manifest_dict.keys, manifest_dict.values):
                     if tool_key is None or not isinstance(tool_value, ast.Dict):
                         continue
                     try:

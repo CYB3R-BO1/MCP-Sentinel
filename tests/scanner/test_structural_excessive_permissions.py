@@ -73,6 +73,30 @@ TOOL_PERMISSIONS = {
     assert findings == []
 
 
+def test_flags_wildcard_scope_in_an_annotated_assignment(tmp_path):
+    findings = _check(
+        tmp_path,
+        """
+from typing import TypedDict
+
+
+class ToolPermission(TypedDict):
+    scopes: list[str]
+    declared_purpose: str
+
+
+TOOL_PERMISSIONS: dict[str, ToolPermission] = {
+    "read_file": {
+        "scopes": ["fs:read:*"],
+        "declared_purpose": "read files within the workspace sandbox",
+    },
+}
+""",
+    )
+    assert len(findings) == 1
+    assert findings[0].rule_id == "MCP-SENT-001"
+
+
 def test_ignores_dicts_that_are_not_permission_manifests(tmp_path):
     findings = _check(
         tmp_path,
