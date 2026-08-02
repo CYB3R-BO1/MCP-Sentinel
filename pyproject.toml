@@ -29,6 +29,7 @@ proxy = [
 [project.scripts]
 mcp-sentinel-scan = "scanner.cli:main"
 mcp-sentinel-supply-chain = "supply_chain.cli:main"
+mcp-sentinel-proxy = "proxy.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

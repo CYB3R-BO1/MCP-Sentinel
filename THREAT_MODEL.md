@@ -52,9 +52,26 @@ Goal: Exfiltrate a secret file outside the agent's intended sandbox
        agent's final answer -> exfiltration succeeds
 ```
 
-Once the runtime proxy (sub-project 4) exists, this same attack tree is
-re-run in "protected mode" and the point in the chain where policy
-enforcement breaks it is documented directly under this section.
+### Protected mode: where the runtime proxy breaks this chain
+
+`tests/proxy/test_protected_mode_demo.py` re-runs this exact scenario
+against `mcp-sentinel-proxy` (`src/proxy/stdio_proxy.py`) in place of the
+raw `vulnerable_target/server.py`, using `default_policy.yaml`. The chain
+breaks at **step 3**, not step 4 or 5 as might be assumed: the proxy's
+injection detector (`MCP-SENT-009`) scans `fetch_url`'s output *before*
+returning it to the agent, flags the embedded "SYSTEM:" directive, and
+blocks the result outright (`injection_detection.block_on_detection:
+true`). The agent's decision loop never sees the planted instruction, so
+it never issues the follow-up `read_file` call at all — class #3
+(prompt-injection-to-tool-call chaining, `MCP-SENT-008`) never gets a
+chance to fire, because class #4 (insecure output handling) is caught
+first.
+
+This also means the proxy's per-tool containment on `read_file` (the
+`sandbox/files` path allowlist enforcing class #5) is defense-in-depth
+here, not the layer that actually stops this particular attack — it *is*
+exercised directly, and proven to block a traversal path on its own, in
+`tests/proxy/test_stdio_proxy_integration.py::test_path_traversal_read_is_blocked_for_real`.
 
 ## Non-goals
 

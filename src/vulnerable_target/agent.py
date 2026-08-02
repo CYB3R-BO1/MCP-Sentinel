@@ -34,8 +34,20 @@ def _extract_text(result) -> str:
     return "".join(block.text for block in result.content if hasattr(block, "text"))
 
 
-async def run_scenario(scenario: Scenario, mock_server_port: int) -> AgentTranscript:
-    params = StdioServerParameters(command=sys.executable, args=["-m", "vulnerable_target.server"])
+async def run_scenario(
+    scenario: Scenario,
+    mock_server_port: int,
+    *,
+    command: str | None = None,
+    args: list[str] | None = None,
+) -> AgentTranscript:
+    """`command`/`args` let callers point the agent at a different stdio
+    MCP server process -- e.g. `proxy/stdio_proxy.py` instead of the raw
+    `vulnerable_target/server.py` -- to re-run the same scenario in
+    "protected mode" without duplicating this function."""
+    params = StdioServerParameters(
+        command=command or sys.executable, args=args or ["-m", "vulnerable_target.server"]
+    )
     transcript = AgentTranscript()
 
     async with stdio_client(params) as (read, write):
