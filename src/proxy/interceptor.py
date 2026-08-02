@@ -90,6 +90,52 @@ def _check_containment(tool_policy: ToolPolicy, arguments: dict[str, Any]) -> tu
     return True, "", None
 
 
+def evaluate_access(
+    *,
+    policy: Policy,
+    tool_policy: ToolPolicy,
+    tool_name: str,
+    correlation_id: str,
+    arguments: dict[str, Any],
+    rate_limiter: SlidingWindowRateLimiter,
+) -> PolicyDecision:
+    """The enabled/rate-limit/containment portion of the access decision,
+    factored out so `proxy/replay.py` can re-evaluate historical calls
+    against an updated policy using the exact same logic ProxyEngine uses
+    live -- not a second, possibly-drifting reimplementation. Does not
+    cover the injection-detection step, which depends on the tool's
+    actual output and isn't captured in the audit log."""
+    if not tool_policy.enabled:
+        return deny(
+            tool_name=tool_name,
+            correlation_id=correlation_id,
+            reason="tool disabled by policy",
+            dry_run=policy.dry_run,
+        )
+
+    max_calls = tool_policy.max_calls_per_minute or policy.max_calls_per_minute
+    if not rate_limiter.allow(tool_name, max_calls=max_calls, window_seconds=60.0):
+        return deny(
+            tool_name=tool_name,
+            correlation_id=correlation_id,
+            reason=f"rate limit exceeded ({max_calls} calls/minute)",
+            rule_id="MCP-SENT-006",
+            dry_run=policy.dry_run,
+        )
+
+    ok, reason, rule_id = _check_containment(tool_policy, arguments)
+    if not ok:
+        return deny(
+            tool_name=tool_name,
+            correlation_id=correlation_id,
+            reason=reason,
+            rule_id=rule_id,
+            dry_run=policy.dry_run,
+        )
+
+    return allow(tool_name=tool_name, correlation_id=correlation_id, reason="policy permits this call")
+
+
 class ProxyEngine:
     def __init__(
         self,
@@ -162,32 +208,11 @@ class ProxyEngine:
     def _evaluate_access(
         self, tool_name: str, correlation_id: str, tool_policy: ToolPolicy, arguments: dict[str, Any]
     ) -> PolicyDecision:
-        if not tool_policy.enabled:
-            return deny(
-                tool_name=tool_name,
-                correlation_id=correlation_id,
-                reason="tool disabled by policy",
-                dry_run=self.policy.dry_run,
-            )
-
-        max_calls = tool_policy.max_calls_per_minute or self.policy.max_calls_per_minute
-        if not self._rate_limiter.allow(tool_name, max_calls=max_calls, window_seconds=60.0):
-            return deny(
-                tool_name=tool_name,
-                correlation_id=correlation_id,
-                reason=f"rate limit exceeded ({max_calls} calls/minute)",
-                rule_id="MCP-SENT-006",
-                dry_run=self.policy.dry_run,
-            )
-
-        ok, reason, rule_id = _check_containment(tool_policy, arguments)
-        if not ok:
-            return deny(
-                tool_name=tool_name,
-                correlation_id=correlation_id,
-                reason=reason,
-                rule_id=rule_id,
-                dry_run=self.policy.dry_run,
-            )
-
-        return allow(tool_name=tool_name, correlation_id=correlation_id, reason="policy permits this call")
+        return evaluate_access(
+            policy=self.policy,
+            tool_policy=tool_policy,
+            tool_name=tool_name,
+            correlation_id=correlation_id,
+            arguments=arguments,
+            rate_limiter=self._rate_limiter,
+        )
