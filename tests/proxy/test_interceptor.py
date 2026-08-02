@@ -167,6 +167,60 @@ def test_correlation_id_is_attached_to_result_and_audit_record(tmp_path):
     assert result.correlation_id == record["correlation_id"] == "corr-0"
 
 
+def test_path_prefix_allowlist_is_segment_aware_not_a_literal_string_prefix(tmp_path):
+    """Regression: 'sandbox/files-evil/secret.txt' is a literal string
+    prefix match for 'sandbox/files' but not a real path-boundary match --
+    a naive str.startswith() check would incorrectly allow it through."""
+    policy = Policy(
+        default_action="deny",
+        tools={"read_file": ToolPolicy(enabled=True, allow_path_prefixes=["sandbox/files"])},
+    )
+    calls = []
+    engine, _, _ = _engine(tmp_path, policy, {"read_file": lambda path: calls.append(path) or "secret"})
+
+    result = engine.handle_tool_call("read_file", {"path": "sandbox/files-evil/secret.txt"})
+
+    assert result.decision.allowed is False
+    assert result.decision.rule_id == "MCP-SENT-003"
+    assert calls == []
+
+
+def test_fetch_url_blocks_protocol_relative_url_bypass(tmp_path):
+    """Regression: gating the host check on '://' in value let
+    protocol-relative URLs ('//evil.com/x') skip SSRF containment even
+    though urlparse resolves a real hostname for them."""
+    policy = Policy(
+        default_action="deny",
+        tools={"fetch_url": ToolPolicy(enabled=True, allow_hosts=["127.0.0.1"])},
+    )
+    calls = []
+    engine, _, _ = _engine(tmp_path, policy, {"fetch_url": lambda url: calls.append(url) or "body"})
+
+    result = engine.handle_tool_call("fetch_url", {"url": "//169.254.169.254/latest/meta-data/"})
+
+    assert result.decision.allowed is False
+    assert result.decision.rule_id == "MCP-SENT-002"
+    assert calls == []
+
+
+def test_query_db_readonly_blocks_tautology_without_literal_1_equals_1(tmp_path):
+    """Regression: the readonly heuristic originally only matched the
+    literal '1'='1' tautology, missing equally-trivial variants like
+    'x'='x'."""
+    policy = Policy(
+        default_action="deny",
+        tools={"query_db": ToolPolicy(enabled=True, readonly=True)},
+    )
+    calls = []
+    engine, _, _ = _engine(tmp_path, policy, {"query_db": lambda username: calls.append(username) or "row"})
+
+    result = engine.handle_tool_call("query_db", {"username": "admin' OR 'x'='x"})
+
+    assert result.decision.allowed is False
+    assert result.decision.rule_id == "MCP-SENT-004"
+    assert calls == []
+
+
 def test_unknown_executor_raises_key_error(tmp_path):
     policy = Policy(default_action="allow", tools={})
     engine, _, _ = _engine(tmp_path, policy, {})

@@ -34,7 +34,8 @@ from proxy.policy import Policy, ToolPolicy, resolve_tool_policy
 from proxy.rate_limiter import SlidingWindowRateLimiter
 
 _SQL_WRITE_OR_INJECTION_RE = re.compile(
-    r"(--|;|\bunion\b|\bdrop\b|\binsert\b|\bupdate\b|\bdelete\b|\bor\s+['\"]?1['\"]?\s*=\s*['\"]?1)",
+    r"(--|;|/\*|\*/|\bunion\b|\bdrop\b|\binsert\b|\bupdate\b|\bdelete\b|\bexec\b|"
+    r"'\s*(or|and)\s*'|\b(or|and)\b\s+['\"]?\w+['\"]?\s*=\s*['\"]?\w+)",
     re.IGNORECASE,
 )
 
@@ -49,13 +50,27 @@ class ToolCallResult:
     latency_seconds: float
 
 
+def _is_within_prefix(path_str: str, prefix: str) -> bool:
+    """Segment-aware prefix match: plain str.startswith() would let
+    "sandbox/files-evil/secret.txt" pass an allowlist of "sandbox/files"
+    since it's a literal string prefix but not a path-boundary one."""
+    path_parts = tuple(p for p in path_str.split("/") if p not in ("", "."))
+    prefix_parts = tuple(p for p in prefix.split("/") if p not in ("", "."))
+    return path_parts[: len(prefix_parts)] == prefix_parts
+
+
 def _check_containment(tool_policy: ToolPolicy, arguments: dict[str, Any]) -> tuple[bool, str, str | None]:
     if tool_policy.allow_hosts is not None:
         for value in arguments.values():
-            if isinstance(value, str) and "://" in value:
-                host = urlparse(value).hostname
-                if host not in tool_policy.allow_hosts:
-                    return False, f"host {host!r} is not in the allowed hosts list", "MCP-SENT-002"
+            if not isinstance(value, str):
+                continue
+            # No "://" gate here on purpose: protocol-relative values like
+            # "//evil.com/x" carry a real netloc/hostname under urlparse
+            # without a scheme, and would silently skip this check if we
+            # only looked at values containing "://".
+            host = urlparse(value).hostname
+            if host is not None and host not in tool_policy.allow_hosts:
+                return False, f"host {host!r} is not in the allowed hosts list", "MCP-SENT-002"
 
     if tool_policy.allow_path_prefixes is not None:
         for value in arguments.values():
@@ -64,7 +79,7 @@ def _check_containment(tool_policy: ToolPolicy, arguments: dict[str, Any]) -> tu
             normalized = value.replace("\\", "/")
             if ".." in normalized.split("/"):
                 return False, f"path {value!r} contains a '..' traversal segment", "MCP-SENT-003"
-            if not any(normalized.startswith(prefix) for prefix in tool_policy.allow_path_prefixes):
+            if not any(_is_within_prefix(normalized, prefix) for prefix in tool_policy.allow_path_prefixes):
                 return False, f"path {value!r} is outside the allowed path prefixes", "MCP-SENT-003"
 
     if tool_policy.readonly:
