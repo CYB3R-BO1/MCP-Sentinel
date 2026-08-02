@@ -71,6 +71,28 @@ TAXONOMY: dict[str, TaxonomyEntry] = {
         default_severity=Severity.MEDIUM,
         threat_model_class=9,
     ),
+    "MCP-SENT-008": TaxonomyEntry(
+        rule_id="MCP-SENT-008",
+        title="Prompt-injection-to-tool-call chaining: tool output contains embedded "
+        "instruction-like text (runtime detection, not statically detectable)",
+        stride=("Tampering", "Elevation of Privilege"),
+        owasp_top_10=None,
+        owasp_llm_top_10=("LLM01: Prompt Injection",),
+        mitre_attack=("T1204 User Execution",),
+        default_severity=Severity.HIGH,
+        threat_model_class=3,
+    ),
+    "MCP-SENT-009": TaxonomyEntry(
+        rule_id="MCP-SENT-009",
+        title="Insecure tool output handling: unsanitized tool output returned to the "
+        "model context (runtime detection, not statically detectable)",
+        stride=("Tampering",),
+        owasp_top_10=None,
+        owasp_llm_top_10=("LLM01: Prompt Injection", "LLM05: Improper Output Handling"),
+        mitre_attack=("T1565 Data Manipulation",),
+        default_severity=Severity.HIGH,
+        threat_model_class=4,
+    ),
 }
 
 
