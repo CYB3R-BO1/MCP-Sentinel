@@ -11,9 +11,6 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 
-from scanner.ast_utils import call_is_dotted as _call_is_dotted
-from scanner.ast_utils import render_dotted_name as _render_dotted
-
 
 @dataclass(frozen=True)
 class SinkArgument:
@@ -42,11 +39,3 @@ class SinkRule:
 
     def message(self, argument: SinkArgument) -> str:
         return f"Unsanitized input reaches sink via {argument.description}"
-
-
-def _call_is_attribute(call: ast.Call, attr_name: str) -> bool:
-    return isinstance(call.func, ast.Attribute) and call.func.attr == attr_name
-
-
-def _call_is_name(call: ast.Call, name: str) -> bool:
-    return isinstance(call.func, ast.Name) and call.func.id == name

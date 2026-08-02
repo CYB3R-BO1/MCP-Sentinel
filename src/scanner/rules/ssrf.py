@@ -1,6 +1,7 @@
 import ast
 
-from scanner.rules.base import SinkArgument, SinkRule, _call_is_dotted
+from scanner.ast_utils import call_is_dotted
+from scanner.rules.base import SinkArgument, SinkRule
 
 _HTTP_FUNCS = (
     "request.urlopen",
@@ -30,7 +31,7 @@ class SsrfRule(SinkRule):
     rule_id = "MCP-SENT-002"
 
     def sink_arguments(self, call: ast.Call) -> list[SinkArgument]:
-        if not _call_is_dotted(call, _HTTP_FUNCS):
+        if not call_is_dotted(call, _HTTP_FUNCS):
             return []
         if call.args:
             return [SinkArgument(expr=call.args[0], description="URL passed to an HTTP fetch")]

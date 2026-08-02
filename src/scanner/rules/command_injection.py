@@ -1,6 +1,7 @@
 import ast
 
-from scanner.rules.base import SinkArgument, SinkRule, _call_is_dotted
+from scanner.ast_utils import call_is_dotted
+from scanner.rules.base import SinkArgument, SinkRule
 
 _SUBPROCESS_FUNCS = (
     "subprocess.run",
@@ -18,7 +19,7 @@ class CommandInjectionRule(SinkRule):
         if _is_os_system(call) and call.args:
             return [SinkArgument(expr=call.args[0], description="command string passed to os.system")]
 
-        if _call_is_dotted(call, _SUBPROCESS_FUNCS) and _has_shell_true(call) and call.args:
+        if call_is_dotted(call, _SUBPROCESS_FUNCS) and _has_shell_true(call) and call.args:
             return [SinkArgument(expr=call.args[0], description="command string passed with shell=True")]
 
         return []

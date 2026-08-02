@@ -24,7 +24,7 @@ def test_json_format_is_valid_json_on_stdout(capsys):
 
 
 def test_sarif_format_is_valid_json_with_sarif_version(capsys):
-    exit_code = main([VULNERABLE_TARGET, "--format", "sarif"])
+    main([VULNERABLE_TARGET, "--format", "sarif"])
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload["version"] == "2.1.0"
