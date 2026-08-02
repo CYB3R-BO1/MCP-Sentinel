@@ -103,9 +103,9 @@ class ProxyEngine:
         id_factory: Callable[[], str] = lambda: uuid.uuid4().hex,
     ):
         self.policy = policy
+        self.metrics = metrics
         self._tool_executors = tool_executors
         self._audit_logger = audit_logger
-        self._metrics = metrics
         self._rate_limiter = rate_limiter or SlidingWindowRateLimiter(clock=clock)
         self._clock = clock
         self._id_factory = id_factory
@@ -125,7 +125,7 @@ class ProxyEngine:
             if self.policy.injection_detection.enabled:
                 injection_result = scan_for_injection(output)
                 if injection_result.flagged:
-                    self._metrics.record_injection_attempt(tool_name=tool_name)
+                    self.metrics.record_injection_attempt(tool_name=tool_name)
                     if (
                         decision.allowed
                         and self.policy.injection_detection.block_on_detection
@@ -148,7 +148,7 @@ class ProxyEngine:
             latency_seconds=latency_seconds,
             injection_result=injection_result,
         )
-        self._metrics.record_call(tool_name=tool_name, decision=decision, latency_seconds=latency_seconds)
+        self.metrics.record_call(tool_name=tool_name, decision=decision, latency_seconds=latency_seconds)
 
         return ToolCallResult(
             correlation_id=correlation_id,

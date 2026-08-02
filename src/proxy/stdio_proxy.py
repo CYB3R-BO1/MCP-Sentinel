@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import threading
 from pathlib import Path
 
 from mcp.server import MCPServer
@@ -101,15 +102,38 @@ def build_app(engine: ProxyEngine) -> MCPServer:
     return mcp_app
 
 
+def _start_metrics_server(metrics: ProxyMetrics, port: int) -> None:
+    """Runs the /metrics + /dashboard FastAPI app on a background daemon
+    thread, sharing the same in-memory ProxyMetrics the stdio MCP server
+    loop records into on the main thread."""
+    import uvicorn
+
+    from proxy.app import create_app
+
+    config = uvicorn.Config(create_app(metrics), host="127.0.0.1", port=port, log_level="warning")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="mcp-sentinel-proxy")
     parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY_PATH)
     parser.add_argument("--audit-log", type=Path, default=Path("proxy-audit.jsonl"))
+    parser.add_argument(
+        "--metrics-port",
+        type=int,
+        default=None,
+        help="If set, serve /metrics and /dashboard on 127.0.0.1:PORT in the background.",
+    )
     args = parser.parse_args(argv)
 
     engine, warnings = build_engine(args.policy, args.audit_log)
     for warning in warnings:
         print(f"mcp-sentinel-proxy: policy warning (failing closed): {warning}", file=sys.stderr)
+
+    if args.metrics_port is not None:
+        _start_metrics_server(engine.metrics, args.metrics_port)
 
     app = build_app(engine)
     app.run()
