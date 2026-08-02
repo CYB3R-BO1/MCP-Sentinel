@@ -46,6 +46,25 @@ def test_dashboard_shows_most_abused_tool_and_ssrf_count():
     assert "SSRF" in response.text
 
 
+def test_dashboard_escapes_html_in_tool_names():
+    """Regression: tool names are Prometheus label values sourced from
+    ProxyEngine.handle_tool_call's tool_name argument -- untrusted in a
+    general MCP deployment -- and were being interpolated into the
+    dashboard's HTML unescaped."""
+    metrics = ProxyMetrics()
+    metrics.record_call(
+        tool_name="<script>alert(1)</script>",
+        decision=allow(tool_name="<script>alert(1)</script>", correlation_id="c1", reason="ok"),
+        latency_seconds=0.01,
+    )
+    client = TestClient(create_app(metrics))
+
+    response = client.get("/dashboard")
+
+    assert "<script>alert(1)</script>" not in response.text
+    assert "&lt;script&gt;" in response.text
+
+
 def test_root_redirects_to_dashboard():
     metrics = ProxyMetrics()
     client = TestClient(create_app(metrics))

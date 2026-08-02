@@ -4,6 +4,8 @@ dashboard, both reading the same in-memory `ProxyMetrics` instance the
 out of sync."""
 from __future__ import annotations
 
+import html
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST
@@ -30,14 +32,19 @@ def create_app(metrics: ProxyMetrics) -> FastAPI:
 
 
 def _render_dashboard(snapshot: dict) -> str:
+    # Tool names are Prometheus label values sourced from
+    # ProxyEngine.handle_tool_call's tool_name argument -- in a general MCP
+    # deployment that can be influenced by whatever the connected client
+    # requests, so they are untrusted input here and must be escaped before
+    # being interpolated into HTML, same as any other reflected value.
     rows = "".join(
-        f"<tr><td>{tool}</td><td>{snapshot['calls_by_tool'].get(tool, 0)}</td>"
+        f"<tr><td>{html.escape(tool)}</td><td>{snapshot['calls_by_tool'].get(tool, 0)}</td>"
         f"<td>{snapshot['denials_by_tool'].get(tool, 0)}</td>"
         f"<td>{snapshot['injection_attempts_by_tool'].get(tool, 0)}</td>"
         f"<td>{snapshot['avg_latency_by_tool'].get(tool, 0.0):.4f}s</td></tr>"
         for tool in sorted(snapshot["calls_by_tool"].keys() | snapshot["denials_by_tool"].keys())
     )
-    most_abused = snapshot["most_abused_tool"] or "none"
+    most_abused = html.escape(snapshot["most_abused_tool"] or "none")
     return f"""
 <html>
 <head><title>MCP Sentinel Proxy Dashboard</title></head>
