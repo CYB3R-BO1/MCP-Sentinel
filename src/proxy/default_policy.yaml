@@ -1,0 +1,39 @@
+# Default policy for mcp-sentinel-proxy, protecting vulnerable_target's
+# four tools. Fail-closed: any tool not listed here is denied
+# (default_action: deny), and a missing/invalid policy file falls back to
+# an even stricter built-in default (see proxy/policy.py).
+version: 1
+default_action: deny
+dry_run: false
+max_calls_per_minute: 60
+
+tools:
+  read_file:
+    enabled: true
+    # Contains the path-traversal attack from THREAT_MODEL.md's flagship
+    # attack tree (class #5): the fetched-content injection tries to read
+    # "../secret.txt" relative to the sandbox files/ directory.
+    allow_path_prefixes: ["sandbox/files"]
+
+  fetch_url:
+    enabled: true
+    # vulnerable_target's mock HTTP server always binds to 127.0.0.1; a
+    # real deployment would list the specific external hosts a tool is
+    # actually meant to call (THREAT_MODEL.md class #2, SSRF).
+    allow_hosts: ["127.0.0.1", "localhost"]
+
+  query_db:
+    enabled: true
+    # Blocks SQL injection payloads in the username argument
+    # (THREAT_MODEL.md class #6) via a write/injection keyword heuristic.
+    readonly: true
+
+  run_command:
+    enabled: false
+    # Declared purpose ("list files") never matches its actual capability
+    # (arbitrary shell execution via shell=True) -- see MCP-SENT-001 in
+    # THREAT_MODEL.md class #1. Disabled outright rather than contained.
+
+injection_detection:
+  enabled: true
+  block_on_detection: true
