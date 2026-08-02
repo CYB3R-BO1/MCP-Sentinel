@@ -14,9 +14,13 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "ruff>=0.6.0",
 ]
+supply-chain = [
+    "pip-audit>=2.7.0",
+]
 
 [project.scripts]
 mcp-sentinel-scan = "scanner.cli:main"
+mcp-sentinel-supply-chain = "supply_chain.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
