@@ -11,6 +11,9 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 
+from scanner.ast_utils import call_is_dotted as _call_is_dotted
+from scanner.ast_utils import render_dotted_name as _render_dotted
+
 
 @dataclass(frozen=True)
 class SinkArgument:
@@ -47,24 +50,3 @@ def _call_is_attribute(call: ast.Call, attr_name: str) -> bool:
 
 def _call_is_name(call: ast.Call, name: str) -> bool:
     return isinstance(call.func, ast.Name) and call.func.id == name
-
-
-def _call_is_dotted(call: ast.Call, dotted_suffixes: tuple[str, ...]) -> bool:
-    """True if the call's callable, rendered as dotted attribute access
-    (e.g. `urllib.request.urlopen`), ends with one of `dotted_suffixes`
-    (e.g. `("request.urlopen",)`), regardless of the leading module alias."""
-    rendered = _render_dotted(call.func)
-    if rendered is None:
-        return False
-    return any(rendered == suffix or rendered.endswith("." + suffix) for suffix in dotted_suffixes)
-
-
-def _render_dotted(expr: ast.expr) -> str | None:
-    if isinstance(expr, ast.Name):
-        return expr.id
-    if isinstance(expr, ast.Attribute):
-        base = _render_dotted(expr.value)
-        if base is None:
-            return None
-        return f"{base}.{expr.attr}"
-    return None
