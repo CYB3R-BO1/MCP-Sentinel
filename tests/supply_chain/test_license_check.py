@@ -23,6 +23,20 @@ def test_copyleft_wins_when_both_keywords_present():
     assert classify_license("Dual License: MIT or GPL-3.0") == "copyleft"
 
 
+def test_short_keywords_do_not_false_positive_on_substrings_of_other_words():
+    """Regression test: a plain BSD license whose full text happens to
+    contain the word 'example' was misclassified as copyleft because
+    'example' contains the substring 'mpl'. Similarly 'limitation'
+    contains 'mit' and 'discussed' contains 'isc'."""
+    bsd_style_text = (
+        "Redistribution and use in source and binary forms, with or without "
+        "modification, are permitted provided that the following conditions "
+        "are met, for example as discussed below, without limitation of "
+        "liability. This is a BSD-style license."
+    )
+    assert classify_license(bsd_style_text) == "permissive"
+
+
 def test_check_licenses_report_shape_and_counts_are_consistent():
     report = check_licenses()
     assert report["total_packages"] > 0
