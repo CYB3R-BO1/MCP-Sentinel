@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -e ".[dev,supply-chain,proxy]"
+      - run: ruff check .
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -e ".[dev,supply-chain,proxy]"
+      - run: mypy src --ignore-missing-imports
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -e ".[dev,supply-chain,proxy]"
+      - run: pytest -q
+
+  scanner-self-scan:
+    # Scans scanner/, proxy/, supply_chain/ and taxonomy/ -- Sentinel's own
+    # implementation -- but deliberately NOT vulnerable_target/, which is a
+    # test fixture that is *supposed* to contain the vulnerability classes
+    # tests/scanner asserts against; gating a merge on findings there would
+    # be nonsensical.
+    #
+    # A handful of HIGH findings are expected and reviewed, not bugs: CLI
+    # entry points (scanner/cli.py, supply_chain/cli.py, proxy/cli.py) take
+    # a user-supplied --output/--audit-log/--policy path and read/write it
+    # directly. The scanner's taint engine has no concept of "this input
+    # comes from the operator invoking the CLI locally, not a remote MCP
+    # tool-call argument," so it correctly (from a pure data-flow view, if
+    # not a trust-boundary view) flags them as path-traversal sinks. There
+    # is also one MEDIUM finding (stdio_proxy.py) where the structural
+    # rate-limit check doesn't see that rate limiting is enforced one file
+    # away in interceptor.py -- a real instance of the scanner's documented
+    # name-matching (not full import graph) limitation, see project.py.
+    #
+    # Because of those known, reviewed findings, this job does not fail the
+    # build on HIGH severity: it fails only on CRITICAL (SQL/command
+    # injection), which have zero legitimate reason to appear in Sentinel's
+    # own code. Full results (including the known HIGHs) are still uploaded
+    # to GitHub code scanning below so they're visible on every PR diff.
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -e ".[dev,supply-chain,proxy]"
+      - name: Generate SARIF for code scanning upload
+        run: |
+          mkdir -p sarif
+          for pkg in scanner proxy supply_chain taxonomy; do
+            mcp-sentinel-scan "src/$pkg" --format sarif --output "sarif/$pkg.sarif"
+          done
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sarif
+      - name: Merge gate -- fail only on CRITICAL findings
+        run: |
+          for pkg in scanner proxy supply_chain taxonomy; do
+            mcp-sentinel-scan "src/$pkg" --format terminal --fail-on critical
+          done
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -e ".[dev,supply-chain,proxy]"
+      - run: mcp-sentinel-supply-chain --fail-on-vulnerabilities
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
