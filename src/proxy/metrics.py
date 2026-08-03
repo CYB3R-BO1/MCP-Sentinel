@@ -89,18 +89,22 @@ class ProxyMetrics:
                         )
             elif family.name == "mcp_sentinel_proxy_tool_call_latency_seconds":
                 for sample in family.samples:
-                    tool = sample.labels.get("tool")
-                    if tool is None:
+                    latency_tool = sample.labels.get("tool")
+                    if latency_tool is None:
                         continue
                     if sample.name.endswith("_sum"):
-                        latency_sum_by_tool[tool] = latency_sum_by_tool.get(tool, 0.0) + sample.value
+                        latency_sum_by_tool[latency_tool] = (
+                            latency_sum_by_tool.get(latency_tool, 0.0) + sample.value
+                        )
                     elif sample.name.endswith("_count"):
-                        latency_count_by_tool[tool] = latency_count_by_tool.get(tool, 0) + int(sample.value)
+                        latency_count_by_tool[latency_tool] = (
+                            latency_count_by_tool.get(latency_tool, 0) + int(sample.value)
+                        )
 
         avg_latency_by_tool = {
             tool: latency_sum_by_tool[tool] / count for tool, count in latency_count_by_tool.items() if count > 0
         }
-        most_abused_tool = max(denials_by_tool, key=denials_by_tool.get) if denials_by_tool else None
+        most_abused_tool = max(denials_by_tool, key=lambda t: denials_by_tool[t]) if denials_by_tool else None
 
         return {
             "total_calls": sum(calls_by_tool.values()),

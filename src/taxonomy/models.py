@@ -18,16 +18,24 @@ class Severity(str, Enum):
     def rank(self) -> int:
         return list(Severity).index(self)
 
-    def __ge__(self, other: "Severity") -> bool:
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, Severity):
+            return NotImplemented
         return self.rank >= other.rank
 
-    def __gt__(self, other: "Severity") -> bool:
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, Severity):
+            return NotImplemented
         return self.rank > other.rank
 
-    def __le__(self, other: "Severity") -> bool:
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, Severity):
+            return NotImplemented
         return self.rank <= other.rank
 
-    def __lt__(self, other: "Severity") -> bool:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, Severity):
+            return NotImplemented
         return self.rank < other.rank
 
 

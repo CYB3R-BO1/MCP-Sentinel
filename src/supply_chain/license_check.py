@@ -83,7 +83,7 @@ def _license_text_for(dist: metadata.Distribution) -> str:
     classifiers = [c for c in dist_metadata.get_all("Classifier", []) if c.startswith("License ::")]
     if classifiers:
         return " ".join(classifiers)
-    return (dist_metadata.get("License") or "").strip()
+    return " ".join(dist_metadata.get_all("License") or []).strip()
 
 
 def check_licenses() -> dict[str, Any]:
