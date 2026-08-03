@@ -8,3 +8,5 @@ venv/
 .ruff_cache/
 *.db
 .coverage
+docs/superpowers
+CLAUDE.md
