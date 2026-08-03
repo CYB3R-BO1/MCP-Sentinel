@@ -68,7 +68,7 @@ chance to fire, because class #4 (insecure output handling) is caught
 first.
 
 This also means the proxy's per-tool containment on `read_file` (the
-`sandbox/files` path allowlist enforcing class #5) is defense-in-depth
+`..`-traversal block enforcing class #5) is defense-in-depth
 here, not the layer that actually stops this particular attack — it *is*
 exercised directly, and proven to block a traversal path on its own, in
 `tests/proxy/test_stdio_proxy_integration.py::test_path_traversal_read_is_blocked_for_real`.

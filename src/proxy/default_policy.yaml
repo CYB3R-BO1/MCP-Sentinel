@@ -10,10 +10,22 @@ max_calls_per_minute: 60
 tools:
   read_file:
     enabled: true
-    # Contains the path-traversal attack from THREAT_MODEL.md's flagship
-    # attack tree (class #5): the fetched-content injection tries to read
-    # "../secret.txt" relative to the sandbox files/ directory.
-    allow_path_prefixes: ["sandbox/files"]
+    # allow_path_prefixes: [""] looks unusual but is deliberate. The proxy's
+    # ".." traversal check only activates when allow_path_prefixes is set
+    # (not None) -- see _check_containment in interceptor.py -- and an
+    # empty-string prefix matches every path (see _is_within_prefix), so
+    # this activates traversal blocking without imposing a real prefix
+    # restriction. A real prefix restriction (e.g. ["sandbox/files"]) isn't
+    # meaningful here: vulnerable_target's read_file already resolves its
+    # `path` argument relative to a fixed SANDBOX_ROOT
+    # (.../sandbox/files), so a legitimate argument is a bare filename like
+    # "README.txt" that was never going to start with a "sandbox/files"
+    # string prefix -- an earlier version of this policy used that prefix
+    # and it denied every legitimate call, caught by
+    # tests/proxy/test_stdio_proxy_integration.py::test_legitimate_read_within_sandbox_is_allowed_for_real.
+    # This still blocks THREAT_MODEL.md's flagship "../secret.txt"
+    # traversal (class #5) via the unconditional ".." check.
+    allow_path_prefixes: [""]
 
   fetch_url:
     enabled: true

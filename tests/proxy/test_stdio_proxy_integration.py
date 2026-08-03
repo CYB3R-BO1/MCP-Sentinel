@@ -61,6 +61,17 @@ async def test_disallowed_host_is_blocked_for_real(mock_server, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_legitimate_read_within_sandbox_is_allowed_for_real(mock_server, tmp_path):
+    async with stdio_client(_params(_DEFAULT_POLICY, tmp_path / "audit.jsonl")) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("read_file", {"path": "README.txt"})
+
+    assert result.is_error is not True
+    assert _extract_text(result) != ""
+
+
+@pytest.mark.asyncio
 async def test_path_traversal_read_is_blocked_for_real(mock_server, tmp_path):
     async with stdio_client(_params(_DEFAULT_POLICY, tmp_path / "audit.jsonl")) as (read, write):
         async with ClientSession(read, write) as session:

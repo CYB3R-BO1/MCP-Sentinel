@@ -103,6 +103,21 @@ against a second, independent source of truth (here, the SBOM count) caught a bu
 had missed, because every existing test mocked `subprocess.run` and never actually exercised environment
 resolution.
 
+**A shipped "working" default policy was silently blocking 100% of the legitimate calls it was supposed to
+allow — because no test exercised the legitimate path.** `default_policy.yaml`'s `read_file` entry set
+`allow_path_prefixes: ["sandbox/files"]`, but `vulnerable_target`'s `read_file` already resolves its `path`
+argument relative to a fixed `SANDBOX_ROOT` that *is* `sandbox/files` — so a legitimate argument is a bare
+filename like `"README.txt"`, which never starts with that string. Every existing proxy test either checked a
+denial (the traversal attempt, which happened to also get denied, just for the wrong reason) or mocked the
+tool executor entirely; none called the real tool with a real, legitimate argument through the real default
+policy. I found this while preparing a screenshot of a real traffic pattern for this write-up, wrote a test
+for the missing case first, watched it fail, and fixed the policy (and, on the first attempted fix, learned
+that the proxy's `..`-traversal check only activates when `allow_path_prefixes` is set at all — removing the
+field entirely would have silently reopened the traversal hole, caught by re-running the existing traversal
+regression test after the "fix"). The lesson: a denial test alone doesn't prove a policy is *correct* — you
+need a positive test proving legitimate use still works, or you can't tell "this correctly blocks attacks"
+apart from "this blocks everything."
+
 **A real, verified API surface beats documentation every time.** `mcp.server.MCPServer` (not
 `mcp.server.fastmcp.FastMCP`, which the installed SDK version doesn't even expose), `CallToolResult.is_error`
 (snake_case, not the wire protocol's camelCase `isError`), and Prometheus's exact sample-naming scheme

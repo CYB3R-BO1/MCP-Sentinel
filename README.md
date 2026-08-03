@@ -176,7 +176,7 @@ max_calls_per_minute: 60
 tools:
   read_file:
     enabled: true
-    allow_path_prefixes: ["sandbox/files"]   # blocks the ../secret.txt traversal below
+    allow_path_prefixes: [""]   # activates the ..-traversal block (see docs/policy.md); no other files are prefix-restricted
 
   fetch_url:
     enabled: true

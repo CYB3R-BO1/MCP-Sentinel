@@ -46,6 +46,11 @@ Initial release. All five sub-projects feature-complete.
   without escaping — a stored-XSS bug; now HTML-escaped.
 - The dependency vulnerability audit resolved `pip-audit` via `PATH`, which can silently target a different
   Python environment than the one running MCP Sentinel; now invoked as `sys.executable -m pip_audit`.
+- `default_policy.yaml`'s `read_file` entry (`allow_path_prefixes: ["sandbox/files"]`) denied every
+  legitimate call, not just traversal attempts — the tool's own `SANDBOX_ROOT` already anchors its `path`
+  argument at that directory, so a legitimate argument never carried that string prefix. Fixed to
+  `allow_path_prefixes: [""]`, which activates the proxy's unconditional `..`-traversal block without
+  imposing an unmatchable prefix restriction.
 - Eight `mypy` findings across `taxonomy`, `supply_chain`, and `proxy` (an LSP-violating comparison-operator
   override, an `importlib.metadata` protocol misuse, a reused loop variable spanning two incompatible types,
   and an `Optional`-returning `max()` key).
