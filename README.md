@@ -9,6 +9,8 @@ tool-calling AI agents. MCP Sentinel finds vulnerabilities in an MCP server's co
 stops the ones that slip through at runtime — with a real interprocedural taint-analysis engine, not
 regex matching, and a real enforcement proxy, not a dry-run report.
 
+![The same attack, unprotected vs. behind mcp-sentinel-proxy — real captured transcripts, not narrated](docs/assets/attack-blocked-demo.gif)
+
 ## Why MCP security matters
 
 MCP servers hand an LLM agent a set of tools — read a file, run a query, fetch a URL, execute a command —
@@ -227,6 +229,17 @@ follow-up `read_file` traversal call never fires at all. Full write-up in
 [`THREAT_MODEL.md`](THREAT_MODEL.md#protected-mode-where-the-runtime-proxy-breaks-this-chain). This exact
 transcript is reproduced automatically in
 [`tests/proxy/test_protected_mode_demo.py`](tests/proxy/test_protected_mode_demo.py).
+
+## Screenshot: the runtime dashboard
+
+`GET /dashboard` on the proxy's metrics port, captured from a real running process after a mixed batch of
+allowed and denied calls across all four tools:
+
+![MCP Sentinel proxy dashboard showing per-tool call/denial/injection counts and average latency](docs/assets/dashboard.jpg)
+
+Deliberately minimal HTML, not a styled SPA — this is a debugging/observability view for whoever operates
+the proxy, not an end-user product surface, and kept simple on purpose. The same numbers are also available
+as Prometheus text format at `/metrics`.
 
 ## Example: supply-chain report
 
