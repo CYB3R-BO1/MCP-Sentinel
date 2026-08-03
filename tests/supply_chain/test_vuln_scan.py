@@ -4,6 +4,7 @@ is tested directly against a canned payload (this is the part with real
 logic), and `run_dependency_audit` is tested with `subprocess.run`
 monkeypatched so the test suite stays fast, deterministic, and offline."""
 import json
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -59,16 +60,23 @@ def test_summarize_empty_dependencies():
     assert summary["vulnerable_dependencies"] == []
 
 
-def test_run_dependency_audit_raises_when_pip_audit_not_on_path(monkeypatch):
-    monkeypatch.setattr("supply_chain.vuln_scan.shutil.which", lambda name: None)
+def test_run_dependency_audit_raises_when_pip_audit_not_importable(monkeypatch):
+    monkeypatch.setattr("supply_chain.vuln_scan.importlib.util.find_spec", lambda name: None)
     with pytest.raises(PipAuditNotAvailable):
         run_dependency_audit()
 
 
-def test_run_dependency_audit_parses_json_from_subprocess(monkeypatch):
-    monkeypatch.setattr("supply_chain.vuln_scan.shutil.which", lambda name: "/usr/bin/pip-audit")
+def test_run_dependency_audit_invokes_pip_audit_as_a_module_of_the_running_interpreter(monkeypatch):
+    """Regression test: invoking a `pip-audit` executable found via PATH audits
+    whatever Python environment *that script* belongs to, which can silently
+    differ from the interpreter running MCP Sentinel itself -- observed for
+    real when a machine has multiple Python installs. `python -m pip_audit`
+    guarantees the audit targets the same interpreter's environment."""
+    monkeypatch.setattr("supply_chain.vuln_scan.importlib.util.find_spec", lambda name: object())
 
     def fake_run(args, capture_output, text, timeout):
+        assert args[0] == sys.executable
+        assert args[1:3] == ["-m", "pip_audit"]
         assert "--local" in args
         assert "--format" in args and "json" in args
         return SimpleNamespace(returncode=1, stdout=json.dumps(_CANNED_PAYLOAD), stderr="")
@@ -79,7 +87,7 @@ def test_run_dependency_audit_parses_json_from_subprocess(monkeypatch):
 
 
 def test_run_dependency_audit_uses_requirements_flag_when_given(monkeypatch, tmp_path):
-    monkeypatch.setattr("supply_chain.vuln_scan.shutil.which", lambda name: "/usr/bin/pip-audit")
+    monkeypatch.setattr("supply_chain.vuln_scan.importlib.util.find_spec", lambda name: object())
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("requests==2.31.0\n", encoding="utf-8")
 
@@ -98,7 +106,7 @@ def test_run_dependency_audit_uses_requirements_flag_when_given(monkeypatch, tmp
 
 
 def test_run_dependency_audit_raises_on_unexpected_exit_code(monkeypatch):
-    monkeypatch.setattr("supply_chain.vuln_scan.shutil.which", lambda name: "/usr/bin/pip-audit")
+    monkeypatch.setattr("supply_chain.vuln_scan.importlib.util.find_spec", lambda name: object())
 
     def fake_run(args, capture_output, text, timeout):
         return SimpleNamespace(returncode=3, stdout="", stderr="boom")
@@ -109,7 +117,7 @@ def test_run_dependency_audit_raises_on_unexpected_exit_code(monkeypatch):
 
 
 def test_run_dependency_audit_raises_on_non_json_output(monkeypatch):
-    monkeypatch.setattr("supply_chain.vuln_scan.shutil.which", lambda name: "/usr/bin/pip-audit")
+    monkeypatch.setattr("supply_chain.vuln_scan.importlib.util.find_spec", lambda name: object())
 
     def fake_run(args, capture_output, text, timeout):
         return SimpleNamespace(returncode=0, stdout="not json", stderr="")

@@ -8,9 +8,10 @@ scanner.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
-import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,7 @@ DEFAULT_TIMEOUT_SECONDS = 300
 
 
 class PipAuditNotAvailable(RuntimeError):
-    """Raised when the `pip-audit` executable isn't on PATH."""
+    """Raised when `pip_audit` isn't importable in the running interpreter."""
 
 
 class PipAuditFailed(RuntimeError):
@@ -26,14 +27,19 @@ class PipAuditFailed(RuntimeError):
     "vulnerabilities found" status (1) or "clean" status (0)."""
 
 
-def _pip_audit_executable() -> str:
-    executable = shutil.which("pip-audit")
-    if executable is None:
+def _ensure_pip_audit_importable() -> None:
+    """Checks importability, not `shutil.which("pip-audit")`: resolving a
+    `pip-audit` executable via PATH can find one installed for a *different*
+    Python environment than the interpreter running MCP Sentinel itself (a
+    real discrepancy seen on a machine with multiple Python installs), which
+    would silently audit the wrong environment. Invoking it as
+    `sys.executable -m pip_audit` (see `run_dependency_audit`) guarantees the
+    audit targets the same environment the SBOM/license passes reflect."""
+    if importlib.util.find_spec("pip_audit") is None:
         raise PipAuditNotAvailable(
-            "pip-audit is not installed or not on PATH; install it with "
+            "pip-audit is not installed in this Python environment; install it with "
             "`pip install pip-audit` to enable dependency vulnerability scanning."
         )
-    return executable
 
 
 def run_dependency_audit(
@@ -48,8 +54,8 @@ def run_dependency_audit(
     `PipAuditFailed` if it exits with a genuine error (as opposed to exit
     code 1, which `pip-audit` uses to mean "ran fine, found vulnerabilities").
     """
-    executable = _pip_audit_executable()
-    args = [executable, "--format", "json", "--progress-spinner", "off"]
+    _ensure_pip_audit_importable()
+    args = [sys.executable, "-m", "pip_audit", "--format", "json", "--progress-spinner", "off"]
     if requirements_path is not None:
         args.extend(["--requirement", str(requirements_path)])
     else:
