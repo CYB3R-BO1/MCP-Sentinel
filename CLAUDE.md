@@ -16,7 +16,9 @@ and tool-calling AI agents. It has five sub-projects, built in order:
 4. **`src/proxy/`** — a runtime guardrail proxy: YAML policy-as-code enforcement, prompt-injection detection on
    tool output, rate limiting, structured audit logging, Prometheus metrics + HTML dashboard, dry-run and
    replay modes, all in front of `vulnerable_target`'s tools.
-5. **CI/CD integration** — not yet built (planned: wire scanner SARIF output into GitHub Actions as a merge gate).
+5. **`.github/workflows/ci.yml`** — GitHub Actions: lint (`ruff`), typecheck (`mypy`), `pytest`, a scanner-on-self
+   job (SARIF uploaded to code scanning, merge gate on `--fail-on critical`), a supply-chain job
+   (`--fail-on-vulnerabilities`), and secret scanning (`gitleaks`).
 
 Master design doc: `docs/superpowers/specs/2026-08-02-mcp-sentinel-design.md`. Threat model with a
 STRIDE/OWASP/OWASP-LLM/MITRE-ATT&CK table (one row per vulnerability class, mapped to the scanner rule that
@@ -37,6 +39,9 @@ pytest tests/scanner/test_engine_interprocedural.py::test_name_of_test -v
 
 # Lint
 ruff check .
+
+# Type check
+mypy src --ignore-missing-imports
 
 # Run the static scanner against a target directory
 mcp-sentinel-scan <path> --format terminal|json|sarif [--output FILE] [--fail-on SEVERITY]
@@ -150,6 +155,24 @@ output.
 injection detector flags `fetch_url`'s own tainted output before the agent ever sees the embedded directive,
 so the naive follow-up `read_file` call never happens at all — see the "Protected mode" subsection under the
 attack tree in `THREAT_MODEL.md`.
+
+### CI/CD (`.github/workflows/ci.yml`)
+
+Five jobs, all on `ubuntu-latest`: `lint`, `typecheck`, `test`, `scanner-self-scan`, `supply-chain`, `secret-scan`.
+`scanner-self-scan` runs `mcp-sentinel-scan` against `src/scanner`, `src/proxy`, `src/supply_chain`, and
+`src/taxonomy` — deliberately **not** `src/vulnerable_target`, which is a test fixture that is supposed to
+contain the vulnerability classes `tests/scanner` asserts against; gating a merge on findings there would be
+nonsensical. That self-scan surfaces a few known, reviewed findings that are not bugs: the three CLI entry
+points (`scanner/cli.py`, `supply_chain/cli.py`, `proxy/cli.py`) take an operator-supplied
+`--output`/`--policy`/`--audit-log` path and read/write it directly — the taint engine has no concept of "this
+is a local CLI flag the invoking operator controls," not a remote MCP tool-call argument, so it correctly (from
+a pure data-flow view) flags a path-traversal sink; and one MEDIUM finding in `stdio_proxy.py` where the
+structural rate-limit check can't see that rate limiting is actually enforced one file away in
+`interceptor.py` — a real instance of the scanner's documented name-matching (not full import graph)
+limitation. Because of those known findings, the job doesn't fail the build on HIGH severity — it fails only
+on `--fail-on critical` (SQL/command injection have zero legitimate reason to appear in Sentinel's own code)
+— while still uploading full SARIF results (including the known HIGHs) to GitHub code scanning so they stay
+visible on every PR diff.
 
 ## Working conventions for this repo
 
