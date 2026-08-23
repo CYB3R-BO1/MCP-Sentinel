@@ -36,26 +36,26 @@ ever run it.
 
 ```
                           ┌─────────────────────────┐
-                          │   Static analysis path    │
-                          │                          │
+                          │   Static analysis path  │
+                          │                         │
    MCP server source ───▶│  scanner (taint engine)  │───▶ findings ───▶ SARIF ───▶ GitHub
-   (yours, or a vendor's) │  + structural rules      │                            code scanning
-                          │  + supply-chain checks   │
+   (yours, or a vendor's) │  + structural rules     │                            code scanning
+                          │  + supply-chain checks  │
                           └─────────────────────────┘
 
-                          ┌──────────────────────────────────────────────────────┐
-                          │                  Runtime enforcement path             │
-                          │                                                      │
-   AI agent  ──tool call─▶│  mcp-sentinel-proxy                                   │
-                          │   ├─ resolve policy for this tool                    │
-                          │   ├─ rate limit                                      │
-                          │   ├─ containment (host allowlist / path prefix /     │
-                          │   │   readonly-SQL heuristic) keyed off arg values   │
-                          │   ├─ execute the real tool ──────────────┐           │
-                          │   ├─ scan output for injection            ▼          │
-                          │   └─ audit log + Prometheus metrics    real MCP server│
-                          │                                        (4 tools)     │
-                          └──────────────────────────────────────────────────────┘
+                          ┌────────────────────────────────────────────────────────┐
+                          │                  Runtime enforcement path              │
+                          │                                                        │
+   AI agent  ──tool call─▶│  mcp-sentinel-proxy                                    │
+                          │   ├─ resolve policy for this tool                      │
+                          │   ├─ rate limit                                        │
+                          │   ├─ containment (host allowlist / path prefix /       │
+                          │   │   readonly-SQL heuristic) keyed off arg values     │
+                          │   ├─ execute the real tool ──────────────┐             │
+                          │   ├─ scan output for injection            ▼            │
+                          │   └─ audit log + Prometheus metrics    real MCP server │
+                          │                                        (4 tools)       │
+                          └────────────────────────────────────────────────────────┘
                                           │                    │
                                     /metrics, /dashboard   proxy-audit.jsonl
                                     (Prometheus + FastAPI)   (replay mode)
