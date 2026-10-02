@@ -27,7 +27,7 @@ class SinkArgument:
 
 class SinkRule:
     """Base class for a static sink rule. Subclasses set `rule_id` and
-    implement `sink_arguments`; `is_sanitized` has a sane default."""
+    implement `sink_arguments` and `message`."""
 
     rule_id: str
 

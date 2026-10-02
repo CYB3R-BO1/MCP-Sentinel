@@ -19,6 +19,21 @@ from pydantic import BaseModel, ValidationError
 
 
 class ToolPolicy(BaseModel):
+    """Per-tool containment. The `allow_path_prefixes` field has three
+    meanings, and the distinction matters (see `interceptor._check_containment`):
+
+    - `None` (default): no path check at all.
+    - `[""]`: traversal-segment (`..`) check only, no prefix restriction.
+      The empty string is the identity prefix -- `_is_within_prefix(x, "")`
+      is always true -- so legitimate bare filenames pass while any `..`
+      segment still denies. Use this when the tool resolves arguments
+      relative to its own sandbox root and a real prefix would deny every
+      legitimate call.
+    - `["a/b", ...]`: traversal check plus segment-aware prefix restriction;
+      the argument must fall under one of the listed prefixes on a real
+      path-segment boundary (`files-evil` does not match `files`).
+    """
+
     enabled: bool = True
     allow_hosts: list[str] | None = None
     allow_path_prefixes: list[str] | None = None

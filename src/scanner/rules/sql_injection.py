@@ -5,13 +5,13 @@ from scanner.rules.base import SinkArgument, SinkRule
 
 class SqlInjectionRule(SinkRule):
     """Flags `<connection-or-cursor>.execute(query)` calls where `query` is
-    built dynamically (f-string, `%`/`.format()`/`+` concatenation) instead
-    of using the DB-API parameterized form `execute(query, params)`. A
-    second positional argument is treated as evidence of parameterization
-    and the call is skipped, even though a truly pathological caller could
-    still splice user input into the query string itself -- that residual
-    case is exactly what the taint check below still catches, since the
-    query argument (args[0]) is checked regardless."""
+    the only argument. A second positional argument (or a `params` /
+    `parameters` keyword) is treated as evidence of the DB-API parameterized
+    form `execute(query, params)` and the call is skipped entirely -- a
+    pathological caller could still splice input into the query string
+    itself, but distinguishing that requires value-level reasoning this
+    rule deliberately does not attempt (documented false-negative
+    trade-off, consistent with the engine's name-matching limits)."""
 
     rule_id = "MCP-SENT-004"
 

@@ -61,7 +61,7 @@ _COPYLEFT_PATTERNS = [_keyword_pattern(k) for k in _COPYLEFT_KEYWORDS]
 
 def classify_license(license_text: str) -> str:
     lowered = license_text.lower().strip()
-    if not lowered or lowered in {"unknown", "none", "unlicense d"}:
+    if not lowered or lowered in {"unknown", "none", "unlicensed"}:
         return "unknown"
     # Copyleft keywords are checked first: "GNU Lesser General Public
     # License" contains no permissive keyword, but a hypothetical dual
