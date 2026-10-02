@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from proxy.audit_log import AuditLogger
 from proxy.interceptor import ProxyEngine
 from proxy.metrics import ProxyMetrics
@@ -221,9 +219,32 @@ def test_query_db_readonly_blocks_tautology_without_literal_1_equals_1(tmp_path)
     assert calls == []
 
 
-def test_unknown_executor_raises_key_error(tmp_path):
+def test_unknown_executor_is_denied_fail_closed_not_key_error(tmp_path):
+    """Unknown tool with an allow-policy must deny (fail-closed, MCP-SENT-001)
+    with an audit record and denial metric -- not raise a bare KeyError with
+    no trace. 001 (least privilege: request exceeds granted agency) is the
+    closest existing taxonomy category, so no new ID is introduced."""
+    import json
+
     policy = Policy(default_action="allow", tools={})
+    engine, _, metrics = _engine(tmp_path, policy, {})
+
+    result = engine.handle_tool_call("nonexistent_tool", {})
+
+    assert result.decision.allowed is False
+    assert result.decision.rule_id == "MCP-SENT-001"
+    assert result.output is None
+    lines = (tmp_path / "audit.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0])["decision"]["rule_id"] == "MCP-SENT-001"
+    assert 'rule_id="MCP-SENT-001"' in metrics.render()
+
+
+def test_unknown_tool_denied_by_default_deny_policy_is_also_audited(tmp_path):
+    policy = Policy(default_action="deny", tools={})
     engine, _, _ = _engine(tmp_path, policy, {})
 
-    with pytest.raises(KeyError):
-        engine.handle_tool_call("nonexistent_tool", {})
+    result = engine.handle_tool_call("nonexistent_tool", {})
+
+    assert result.decision.allowed is False
+    assert result.output is None

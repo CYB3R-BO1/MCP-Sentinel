@@ -166,7 +166,26 @@ class ProxyEngine:
         output: str | None = None
         injection_result: InjectionScanResult | None = None
 
-        if decision.allowed or self.policy.dry_run:
+        if tool_name not in self._tool_executors:
+            # Fail closed on an unregistered tool name. This only fires when
+            # the policy *allows* a tool with no implementation (with the
+            # default deny-all policy the access check above already denies
+            # it); without this guard the executor lookup below raises a
+            # bare KeyError with no audit record. Mapped to MCP-SENT-001
+            # (excessive scope / least privilege: the call asks for agency
+            # beyond what the proxy was configured to grant) rather than a
+            # new taxonomy ID -- no existing category describes this more
+            # precisely, and 001's "request exceeds granted scope" meaning
+            # is the closest fit. Deliberately not executed even in dry-run
+            # mode: there is no real output to return for an unknown tool.
+            decision = deny(
+                tool_name=tool_name,
+                correlation_id=correlation_id,
+                reason=f"unknown tool {tool_name!r}: no registered executor (fail-closed)",
+                rule_id="MCP-SENT-001",
+                dry_run=self.policy.dry_run,
+            )
+        elif decision.allowed or self.policy.dry_run:
             output = self._tool_executors[tool_name](**arguments)
             if self.policy.injection_detection.enabled:
                 injection_result = scan_for_injection(output)
