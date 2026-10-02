@@ -1,4 +1,7 @@
+from subprocess import TimeoutExpired
+
 from supply_chain.report import generate_supply_chain_report, render_terminal_report
+from supply_chain.vuln_scan import PipAuditFailed
 
 
 def test_generate_report_skips_vuln_scan_when_requested():
@@ -43,3 +46,28 @@ def test_render_terminal_report_lists_copyleft_packages_when_present():
     }
     text = render_terminal_report(report)
     assert "gpl-pkg 1.0: GPL-3.0" in text
+
+
+def test_vuln_scan_failure_degrades_to_error_report_not_crash(monkeypatch):
+    """Regression: PipAuditFailed (bad exit, non-JSON output) must degrade to
+    {"error": ...} like PipAuditNotAvailable does, not crash the CLI."""
+
+    def _boom(_requirements_path):
+        raise PipAuditFailed("pip-audit exited 2: boom")
+
+    monkeypatch.setattr("supply_chain.report.run_dependency_audit", _boom)
+    report = generate_supply_chain_report(skip_vuln_scan=False)
+    assert report["dependency_audit"] == {"error": "pip-audit exited 2: boom"}
+    assert "unavailable (pip-audit exited 2: boom)" in render_terminal_report(report)
+
+
+def test_vuln_scan_timeout_degrades_to_error_report_not_crash(monkeypatch):
+    """Regression: a pip-audit timeout must degrade the same way, not crash."""
+
+    def _timeout(_requirements_path):
+        raise TimeoutExpired(cmd="pip-audit", timeout=300)
+
+    monkeypatch.setattr("supply_chain.report.run_dependency_audit", _timeout)
+    report = generate_supply_chain_report(skip_vuln_scan=False)
+    assert "error" in report["dependency_audit"]
+    assert "unavailable" in render_terminal_report(report)

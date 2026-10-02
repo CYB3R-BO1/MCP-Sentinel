@@ -4,11 +4,12 @@ supply-chain equivalent of `scanner.scan`/`scanner.output.terminal`."""
 from __future__ import annotations
 
 from pathlib import Path
+from subprocess import TimeoutExpired
 from typing import Any
 
 from supply_chain.license_check import check_licenses
 from supply_chain.sbom import generate_sbom_for_environment, generate_sbom_for_requirements
-from supply_chain.vuln_scan import PipAuditNotAvailable, run_dependency_audit
+from supply_chain.vuln_scan import PipAuditFailed, PipAuditNotAvailable, run_dependency_audit
 
 
 def generate_supply_chain_report(
@@ -28,7 +29,7 @@ def generate_supply_chain_report(
     else:
         try:
             dependency_audit = run_dependency_audit(requirements_path)
-        except PipAuditNotAvailable as exc:
+        except (PipAuditNotAvailable, PipAuditFailed, TimeoutExpired) as exc:
             dependency_audit = {"error": str(exc)}
 
     return {
