@@ -12,31 +12,37 @@ env:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
       - run: pip install -e ".[dev,supply-chain,proxy]"
       - run: ruff check .
 
   typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
       - run: pip install -e ".[dev,supply-chain,proxy]"
       - run: mypy src --ignore-missing-imports
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
       - run: pip install -e ".[dev,supply-chain,proxy]"
       - run: pytest -q
 
@@ -65,6 +71,7 @@ jobs:
     # own code. Full results (including the known HIGHs) are still uploaded
     # to GitHub code scanning below so they're visible on every PR diff.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       security-events: write
     steps:
@@ -72,6 +79,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
       - run: pip install -e ".[dev,supply-chain,proxy]"
       - name: Generate SARIF for code scanning upload
         run: |
@@ -79,7 +87,7 @@ jobs:
           for pkg in scanner proxy supply_chain taxonomy; do
             mcp-sentinel-scan "src/$pkg" --format sarif --output "sarif/$pkg.sarif"
           done
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: sarif
       - name: Merge gate -- fail only on CRITICAL findings
@@ -90,16 +98,25 @@ jobs:
 
   supply-chain:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      # Upgrade the runner bootstrap first: a stale pre-installed pip /
+      # setuptools carries its own known advisories, which would otherwise
+      # trip --fail-on-vulnerabilities for reasons unrelated to this
+      # project's dependencies. Never silence that gate with an advisory
+      # allowlist -- fix the environment instead (see docs/supply_chain.md).
+      - run: pip install --upgrade pip setuptools
       - run: pip install -e ".[dev,supply-chain,proxy]"
       - run: mcp-sentinel-supply-chain --fail-on-vulnerabilities
 
   secret-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
