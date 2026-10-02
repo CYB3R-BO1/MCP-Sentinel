@@ -13,7 +13,8 @@ web-app category applies), OWASP LLM/Agentic Top 10 mapping, a MITRE ATT&CK tech
 applies), and a default `Severity`. Findings from the scanner and denials from the proxy both carry a
 `rule_id` that resolves to the same entry — so "what does `MCP-SENT-003` mean" has exactly one answer
 anywhere in the codebase. `THREAT_MODEL.md` is the human-readable rendering of this table, with a row per
-class and a "Detected by" / "Blocked by" column.
+class and a "Detected by" column naming the scanner rule where one exists (runtime-only classes
+`MCP-SENT-008`/`MCP-SENT-009` are enforced by the proxy's injection detector instead).
 
 ## Sub-project 1: the vulnerable target (`src/vulnerable_target/`)
 
@@ -30,7 +31,7 @@ in the README demo and `THREAT_MODEL.md`'s attack tree.
 
 Two independent analysis passes, combined in `scan.py::run_scan`: an interprocedural taint engine
 (`taint/engine.py`) for the four data-flow vulnerability classes, and structural rules
-(`structural_rules/*.py`) for the two classes that don't need taint tracing. See [`scanner.md`](scanner.md).
+(`structural_rules/*.py`) for the three classes that don't need taint tracing. See [`scanner.md`](scanner.md).
 
 ## Sub-project 3: supply chain (`src/supply_chain/`)
 
@@ -39,15 +40,20 @@ Three checks combined by `report.py`: an SBOM (`sbom.py`, hand-rolled CycloneDX 
 vulnerability scan (`vuln_scan.py`, wraps `pip-audit` via `subprocess`), and license classification
 (`license_check.py`, word-boundary regex, trove classifiers preferred over free-text `License` fields).
 
-**Deliberate scope boundary**: all three checks reflect the *current Python environment's* installed
-distributions, not a resolved dependency graph for an arbitrary target's `requirements.txt` you don't have
-installed. License metadata and audit data aren't available without installing a package, so accurately
-checking a target MCP server's supply chain would require installing its dependencies into an isolated
-environment first — out of scope here. In practice this means: run `mcp-sentinel-supply-chain` inside the
-environment you actually care about (a clean venv with only that project's dependencies installed), not
-inside a general-purpose dev environment that also has unrelated tooling installed — otherwise the report
-(and a `--fail-on-vulnerabilities` CI gate) reflects that unrelated tooling too. This is a real thing we hit
-while building the CI workflow — see the `supply-chain` job discussion in [`../CLAUDE.md`](../CLAUDE.md).
+**Deliberate scope boundary**: the SBOM and vulnerability scan honor
+`--requirements`, but license classification (`check_licenses()`) always
+reflects the *current Python environment's* installed distributions, not a
+resolved dependency graph for an arbitrary target's `requirements.txt` you
+don't have installed. License metadata and audit data aren't available
+without installing a package, so accurately checking a target MCP server's
+supply chain requires installing its dependencies into an isolated
+environment first — out of scope here. In practice this means: run
+`mcp-sentinel-supply-chain` inside the environment you actually care about (a
+clean venv with only that project's dependencies installed), not inside a
+general-purpose dev environment that also has unrelated tooling installed —
+otherwise the report (and a `--fail-on-vulnerabilities` CI gate) reflects
+that unrelated tooling too. Full detail in
+[`supply_chain.md`](supply_chain.md).
 
 ## Sub-project 4: the runtime guardrail proxy (`src/proxy/`)
 

@@ -6,9 +6,10 @@ STRIDE, OWASP Top 10 (where a classic web-app category genuinely applies),
 the OWASP Top 10 for LLM/Agentic Applications, and MITRE ATT&CK techniques
 where a real technique applies. The "Detected by" column names the static
 scanner rule (see `src/scanner/`, taxonomy in `src/taxonomy/registry.py`)
-that catches each class, where one exists; "Blocked by" is filled in once
-the runtime proxy (sub-project 4) lands — this document is updated in
-place as that happens, not rewritten.
+that catches each class, where one exists; classes #3 and #4 are runtime
+decision-loop behaviors with no static data-flow signature, so they name the
+runtime proxy rule (`MCP-SENT-008`/`MCP-SENT-009`, enforced by
+`src/proxy/injection_detector.py`) instead.
 
 ## STRIDE-mapped vulnerability classes
 

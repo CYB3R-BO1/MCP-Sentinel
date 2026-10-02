@@ -94,7 +94,7 @@ STRIDE / OWASP / OWASP-LLM / MITRE ATT&CK mapping.
 - **Dry-run mode**: report what the policy *would* block without withholding real output — run in
   report-only mode before trusting it to enforce.
 - **SARIF output** wired into GitHub Actions as a real merge gate, not just a report nobody reads.
-- 169 tests, `mypy`-clean, `ruff`-clean, several real bugs found via automated code review after first
+- 176 tests, `mypy`-clean, `ruff`-clean, several real bugs found via automated code review after first
   commit (see [`WRITEUP.md`](WRITEUP.md)) — not just narrated, actually fixed with regression tests.
 
 ## Installation
@@ -275,7 +275,7 @@ always consistent with the SBOM/license passes above it.
 ## Testing
 
 ```bash
-pytest              # 169 passed, 2 skipped (shell-injection tests need a POSIX shell, skipped on Windows)
+pytest              # 176 passed, 2 skipped (shell-injection tests need a POSIX shell, skipped on Windows)
 ruff check .         # lint
 mypy src --ignore-missing-imports   # typecheck
 ```
@@ -301,6 +301,7 @@ docs/                     # per-subsystem deep dives
 - [`docs/scanner.md`](docs/scanner.md) — the taint engine and structural rules
 - [`docs/proxy.md`](docs/proxy.md) — the runtime guardrail proxy
 - [`docs/policy.md`](docs/policy.md) — the YAML policy schema
+- [`docs/supply_chain.md`](docs/supply_chain.md) — SBOM, vulnerability scan, licenses, and the environment-scope boundary
 - [`WRITEUP.md`](WRITEUP.md) — design decisions, tradeoffs, lessons learned
 - [`SECURITY.md`](SECURITY.md) — how to report a vulnerability in this project itself
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute

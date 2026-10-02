@@ -32,13 +32,15 @@ injection_detection:
   `allow_hosts`; a `read_file`-style tool needs `allow_path_prefixes`). Leaving both unset on an `enabled:
   true` tool means the proxy enforces rate limiting and injection detection on it, but no argument
   containment.
-- **`allow_path_prefixes` also gates the unconditional `..`-traversal check** — it only activates when this
-  field is set (not `None`). If a tool's legitimate arguments are bare filenames relative to a fixed root the
-  tool itself already anchors (as `vulnerable_target`'s `read_file` does), there's no meaningful non-trivial
-  prefix to enforce — set `allow_path_prefixes: [""]` (an empty-string prefix matches every path) purely to
-  activate the `..` block without imposing a real prefix restriction. This is exactly what
-  `default_policy.yaml` does, after an earlier version used `["sandbox/files"]` and denied every legitimate
-  call — see the comment in that file for the full story.
+- **`allow_path_prefixes`** has three meanings (`None` = no path check; `[""]` = `..`-traversal check
+  only, no prefix restriction — the empty string is the identity prefix; `["a/b"]` = traversal check plus
+  segment-aware prefix restriction — see the `ToolPolicy` docstring in `policy.py`). The `..`-traversal check
+  only activates when this field is set (not `None`). If a tool's legitimate arguments are bare filenames
+  relative to a fixed root the tool itself already anchors (as `vulnerable_target`'s `read_file` does),
+  there's no meaningful non-trivial prefix to enforce — set `allow_path_prefixes: [""]` purely to activate
+  the `..` block without imposing a real prefix restriction. This is exactly what `default_policy.yaml` does,
+  after an earlier version used `["sandbox/files"]` and denied every legitimate call — see the comment in
+  that file for the full story.
 - **`readonly`** applies a regex heuristic (SQL comment markers, `UNION`/`DROP`/`INSERT`/`UPDATE`/`DELETE`,
   tautology patterns like `'x'='x'`) to string arguments — a heuristic, not a real SQL parser, so it can both
   over- and under-match on sufficiently adversarial input. Documented as a heuristic deliberately, not
@@ -48,9 +50,12 @@ injection_detection:
 ## `dry_run`
 
 `dry_run: true` **never withholds real output or execution.** It only stops a would-be denial from
-suppressing the result — the call still executes, the decision is still logged and metriced as a denial, but
-the caller still gets the real response. This is what makes it safe to point a new policy at production
-traffic and see what it *would* block before trusting it to actually block anything.
+suppressing the result — the call still executes, the decision is still recorded in the audit log (and in
+`tool_calls_total{allowed="False"}`), but the caller still gets the real response. Dry-run denials are
+deliberately *not* counted in `policy_denials_total` — they are would-block observations, not real blocks —
+so the dashboard and `/metrics` reflect what the policy actually enforced. This is what makes it safe to
+point a new policy at production traffic and see what it *would* block before trusting it to actually block
+anything.
 
 ## Fail-closed loading
 

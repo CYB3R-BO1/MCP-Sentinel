@@ -8,5 +8,8 @@ venv/
 .ruff_cache/
 *.db
 .coverage
-docs/superpowers
-CLAUDE.md
+.mypy_cache/
+*.sarif
+sarif/
+proxy-audit.jsonl
+audit.jsonl

@@ -3,6 +3,44 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+V1 hardening: no new vulnerability classes or components — correctness,
+failure handling, and documentation truthfulness only.
+
+### Fixed
+
+- Supply-chain CLI crashed on `pip-audit` failures (`PipAuditFailed`,
+  `TimeoutExpired`); now degrades to `{"error": ...}` like a missing
+  `pip-audit` does, with regression tests.
+- Proxy raised a bare `KeyError` (no audit record, no metric) when the
+  policy allowed a tool with no registered executor; now denied fail-closed
+  as `MCP-SENT-001` (least privilege), with regression tests.
+- Dry-run denials were counted in `policy_denials_total` though nothing was
+  blocked; now recorded in the audit log and `tool_calls_total` only, with a
+  regression test.
+- Proxy replay aborted the entire replay on one malformed audit-log line;
+  now skips it with a stderr warning and replays the rest, with a regression
+  test.
+- `mcp-sentinel-proxy run --metrics-port` parsed as `str` while the stdio
+  parser expects `int`; now `int` on both, with a regression test.
+- `classify_license` fast-path typo (`"unlicense d"`); corrected to
+  `"unlicensed"`.
+- `SqlInjectionRule` and `SinkRule` docstrings contradicted the code
+  (parameterized-form handling; nonexistent `is_sanitized` hook); rewritten
+  to describe actual behavior.
+
+### Changed
+
+- Replaced `CLAUDE.md` with `AGENTS.md` (rewritten to describe the current
+  implementation); added `docs/supply_chain.md`; fixed stale references
+  (`THREAT_MODEL.md` proxy intro, `docs/architecture.md` pointers, policy
+  `[""]`/dry-run semantics in `docs/policy.md`).
+- CI: `upload-sarif@v3` → `v4`, `pip` caching, `pip`/`setuptools` upgraded
+  before the supply-chain gate, per-job timeouts. The gate is never silenced
+  with an advisory allowlist.
+- Removed the unused `httpx` dev dependency.
+
 ## [0.1.0] - 2026-08-03
 
 Initial release. All five sub-projects feature-complete.

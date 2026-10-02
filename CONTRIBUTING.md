@@ -31,17 +31,17 @@ All three run in CI (`.github/workflows/ci.yml`) and are required to merge, alon
 - **Commit incrementally.** One logical change per commit, each one green (tests pass, lint clean) before the
   next. Don't batch unrelated changes into one commit.
 - **No new planning docs per change** unless the architecture materially changes. The master design doc
-  (`docs/superpowers/specs/2026-08-02-mcp-sentinel-design.md`) and `CLAUDE.md` already cover cross-cutting
+  (`docs/superpowers/specs/2026-08-02-mcp-sentinel-design.md`) and `AGENTS.md` already cover cross-cutting
   decisions; update those in place rather than adding a new doc that will drift out of sync.
 - **Verify third-party API surfaces directly** rather than assuming from documentation, especially for the
   `mcp` SDK, `pip-audit`'s JSON schema, and `prometheus_client`'s sample-naming — this project has hit real,
-  non-obvious discrepancies between docs and actual installed behavior more than once (see `CLAUDE.md`).
+  non-obvious discrepancies between docs and actual installed behavior more than once (see `AGENTS.md`).
 
 ## Where things live
 
 See [`docs/architecture.md`](docs/architecture.md) for how the five sub-projects fit together, and
 [`docs/scanner.md`](docs/scanner.md) / [`docs/proxy.md`](docs/proxy.md) for the two components with real
-analysis logic. `CLAUDE.md` is the single source of truth for architectural conventions — if you're unsure
+analysis logic. `AGENTS.md` is the single source of truth for architectural conventions — if you're unsure
 where something belongs, check there first.
 
 ## Adding a new vulnerability class
