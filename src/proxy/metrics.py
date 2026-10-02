@@ -45,7 +45,12 @@ class ProxyMetrics:
     def record_call(self, *, tool_name: str, decision: PolicyDecision, latency_seconds: float) -> None:
         self.tool_calls_total.labels(tool=tool_name, allowed=str(decision.allowed)).inc()
         self.tool_call_latency_seconds.labels(tool=tool_name).observe(latency_seconds)
-        if not decision.allowed:
+        # Dry-run "denials" are would-block observations, not real blocks --
+        # the tool still executed and returned output. Counting them in
+        # policy_denials_total would mislead the dashboard and any SIEM
+        # consuming /metrics, so only genuine (enforcing-mode) denials land
+        # in the denial counter.
+        if not decision.allowed and not decision.dry_run:
             self.policy_denials_total.labels(tool=tool_name, rule_id=decision.rule_id or "none").inc()
 
     def record_injection_attempt(self, *, tool_name: str) -> None:

@@ -20,7 +20,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run the proxy as a stdio MCP server (the default mode).")
     run_parser.add_argument("--policy", type=str, default=str(DEFAULT_POLICY_PATH))
     run_parser.add_argument("--audit-log", type=str, default="proxy-audit.jsonl")
-    run_parser.add_argument("--metrics-port", type=str, default=None)
+    run_parser.add_argument("--metrics-port", type=int, default=None)
 
     replay_parser = subparsers.add_parser(
         "replay", help="Re-evaluate a captured audit log against a policy without executing any tool."
@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         run_argv = ["--policy", args.policy, "--audit-log", args.audit_log]
         if args.metrics_port is not None:
-            run_argv += ["--metrics-port", args.metrics_port]
+            run_argv += ["--metrics-port", str(args.metrics_port)]
         stdio_proxy_main(run_argv)
         return 0
 

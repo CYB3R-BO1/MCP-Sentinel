@@ -16,6 +16,7 @@ artificially compressed one.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -50,6 +51,19 @@ class _ReplayClock:
 
 
 def replay_audit_log(audit_log_path: Path, policy: Policy) -> list[ReplayResult]:
+    """Re-evaluate each record in ``audit_log_path`` against ``policy``.
+
+    Malformed lines (bad JSON, missing keys, unparseable timestamps) are
+    skipped with a stderr warning rather than aborting the whole replay --
+    one corrupt line in a thousand-line capture must not hide the other 999
+    decisions. A structured skipped-line count is deliberately *not* part of
+    the return value in V1, to keep the replay JSON contract stable.
+
+    On dry-run: ``changed`` compares ``allowed`` only. A dry-run denial
+    (``allowed=False, dry_run=True``) and an enforcing denial carry the same
+    ``allowed`` value by design -- replay answers "would the allow/deny
+    flip?", while dry-run is a deployment mode handled by the caller.
+    """
     lines = [line for line in audit_log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if not lines:
         return []
@@ -58,30 +72,38 @@ def replay_audit_log(audit_log_path: Path, policy: Policy) -> list[ReplayResult]
     rate_limiter = SlidingWindowRateLimiter(clock=clock)
     results: list[ReplayResult] = []
 
-    for line in lines:
-        record = json.loads(line)
-        clock.now = datetime.fromisoformat(record["timestamp"]).timestamp()
+    for lineno, line in enumerate(lines, start=1):
+        try:
+            record = json.loads(line)
+            clock.now = datetime.fromisoformat(record["timestamp"]).timestamp()
 
-        tool_name = record["tool_name"]
-        arguments = record["arguments"]
+            tool_name = record["tool_name"]
+            arguments = record["arguments"]
+            original_allowed = record["decision"]["allowed"]
+            original_reason = record["decision"]["reason"]
+            correlation_id = record["correlation_id"]
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as exc:
+            print(f"warning: skipping malformed audit log line {lineno}: {exc}", file=sys.stderr)
+            continue
+
         tool_policy = resolve_tool_policy(policy, tool_name)
 
         replayed_decision = evaluate_access(
             policy=policy,
             tool_policy=tool_policy,
             tool_name=tool_name,
-            correlation_id=record["correlation_id"],
+            correlation_id=correlation_id,
             arguments=arguments,
             rate_limiter=rate_limiter,
         )
 
         results.append(
             ReplayResult(
-                correlation_id=record["correlation_id"],
+                correlation_id=correlation_id,
                 tool_name=tool_name,
                 arguments=arguments,
-                original_allowed=record["decision"]["allowed"],
-                original_reason=record["decision"]["reason"],
+                original_allowed=original_allowed,
+                original_reason=original_reason,
                 replayed_allowed=replayed_decision.allowed,
                 replayed_reason=replayed_decision.reason,
             )

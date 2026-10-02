@@ -16,6 +16,21 @@ def test_run_subcommand_delegates_to_stdio_proxy_main(monkeypatch):
     assert captured["argv"] == ["--policy", "custom.yaml", "--audit-log", "custom.jsonl"]
 
 
+def test_run_subcommand_passes_metrics_port_as_string_arg(monkeypatch):
+    """--metrics-port parses as int on the proxy CLI and is forwarded in the
+    re-serialized argv the int-typed stdio parser expects."""
+    captured = {}
+
+    def fake_stdio_main(argv=None):
+        captured["argv"] = argv
+
+    monkeypatch.setattr("proxy.cli.stdio_proxy_main", fake_stdio_main)
+
+    main(["run", "--policy", "p.yaml", "--audit-log", "a.jsonl", "--metrics-port", "8000"])
+
+    assert captured["argv"] == ["--policy", "p.yaml", "--audit-log", "a.jsonl", "--metrics-port", "8000"]
+
+
 def test_replay_subcommand_prints_summary_and_exits_zero_when_nothing_changed(tmp_path, capsys):
     policy_file = tmp_path / "policy.yaml"
     policy_file.write_text(

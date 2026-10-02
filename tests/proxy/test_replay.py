@@ -109,6 +109,35 @@ def test_replay_returns_empty_list_for_empty_log(tmp_path):
     assert results == []
 
 
+def test_replay_skips_malformed_lines_instead_of_aborting(tmp_path, capsys):
+    """One corrupt line must not hide the decisions around it: it is skipped
+    with a warning and the valid records still replay."""
+    log_path = tmp_path / "audit.jsonl"
+    _write_record(
+        log_path,
+        tool_name="read_file",
+        arguments={"path": "a.txt"},
+        decision=allow(tool_name="read_file", correlation_id="c1", reason="policy permits this call"),
+        timestamp="2026-08-02T10:00:00+00:00",
+    )
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("this is not json\n")
+        f.write(json.dumps({"timestamp": "not-a-timestamp", "tool_name": "x"}) + "\n")
+    _write_record(
+        log_path,
+        tool_name="read_file",
+        arguments={"path": "b.txt"},
+        decision=allow(tool_name="read_file", correlation_id="c2", reason="policy permits this call"),
+        timestamp="2026-08-02T10:00:01+00:00",
+    )
+    policy = Policy(default_action="deny", tools={"read_file": ToolPolicy(enabled=True)})
+
+    results = replay_audit_log(log_path, policy)
+
+    assert [r.correlation_id for r in results] == ["c1", "c2"]
+    assert "skipping malformed audit log line" in capsys.readouterr().err
+
+
 def test_summarize_replay_counts_changed_decisions(tmp_path):
     from proxy.replay import summarize_replay
 

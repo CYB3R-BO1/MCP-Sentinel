@@ -24,6 +24,21 @@ def test_record_call_increments_denials_when_blocked():
     assert 'tool="run_command"' in rendered
 
 
+def test_dry_run_denial_does_not_increment_denial_counter():
+    """Dry-run denials are would-block observations (output still returned),
+    so they must not pollute the denial counter or the dashboard/SIEM view."""
+    metrics = ProxyMetrics()
+    decision = deny(
+        tool_name="run_command", correlation_id="c3", reason="disabled", rule_id="MCP-SENT-001", dry_run=True
+    )
+    metrics.record_call(tool_name="run_command", decision=decision, latency_seconds=0.01)
+
+    # The counter family exists in exposition format even with zero samples,
+    # so assert on actual samples: no denial sample recorded, snapshot empty.
+    assert 'mcp_sentinel_proxy_policy_denials_total{' not in metrics.render()
+    assert metrics.snapshot()["denials_by_tool"] == {}
+
+
 def test_record_injection_attempt_increments_counter():
     metrics = ProxyMetrics()
     metrics.record_injection_attempt(tool_name="fetch_url")
